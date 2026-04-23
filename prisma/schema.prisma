@@ -1,0 +1,490 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AppLocale {
+  EN
+  ES
+  FR
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum PropertyType {
+  RESIDENTIAL_LONG_TERM
+  SHORT_TERM_RENTAL
+  MULTI_UNIT
+  COMMERCIAL
+}
+
+enum PropertyStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum UnitStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum TenantType {
+  INDIVIDUAL
+  COMPANY
+}
+
+enum TenantStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum LeaseStatus {
+  DRAFT
+  ACTIVE
+  ENDED
+  TERMINATED
+}
+
+enum PaymentFrequency {
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  ANNUALLY
+}
+
+enum RentPaymentStatus {
+  PENDING
+  PAID
+  OVERDUE
+  PARTIALLY_PAID
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CASH
+  CARD
+  DIRECT_DEBIT
+  OTHER
+}
+
+enum DocumentCategory {
+  LEASE_CONTRACT
+  INVOICE
+  UTILITY_BILL
+  MORTGAGE_CONTRACT
+  INSURANCE
+  BUILDING_MEETING
+  TAX
+  MISCELLANEOUS
+}
+
+enum StorageProvider {
+  R2
+  AWS_S3
+  OTHER_S3
+}
+
+enum ReportType {
+  INCOME
+  EXPENSE
+  PNL
+  PORTFOLIO_SUMMARY
+}
+
+enum ReportFormat {
+  CSV
+  PDF
+}
+
+enum ReportStatus {
+  PENDING
+  GENERATING
+  READY
+  FAILED
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum BillingProvider {
+  STRIPE
+  MANUAL
+}
+
+model User {
+  id                  String               @id @default(uuid())
+  email               String               @unique
+  passwordHash        String?
+  googleId            String?              @unique
+  fullName            String
+  avatarUrl           String?
+  emailVerifiedAt     DateTime?
+  preferredLocale     AppLocale            @default(EN)
+  status              UserStatus           @default(ACTIVE)
+  lastLoginAt         DateTime?
+  workspace           Workspace?           @relation("WorkspaceOwner")
+  refreshSessions     RefreshSession[]
+  passwordResetTokens PasswordResetToken[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+}
+
+model Workspace {
+  id                String            @id @default(uuid())
+  ownerUserId       String            @unique
+  name              String
+  slug              String            @unique
+  countryCode       String            @db.VarChar(2)
+  defaultCurrency   String            @default("EUR") @db.VarChar(3)
+  preferredLocale   AppLocale         @default(EN)
+  timezone          String            @default("UTC")
+  owner             User              @relation("WorkspaceOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  properties        Property[]
+  units             Unit[]
+  tenants           Tenant[]
+  leases            Lease[]
+  rentPayments      RentPayment[]
+  expenses          Expense[]
+  expenseCategories ExpenseCategory[]
+  tags              Tag[]
+  documents         Document[]
+  reports           FinancialReport[]
+  subscription      Subscription?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+}
+
+model Property {
+  id                 String         @id @default(uuid())
+  workspaceId        String
+  name               String
+  addressLine1       String
+  addressLine2       String?
+  postalCode         String?
+  city               String
+  stateRegion        String?
+  countryCode        String         @db.VarChar(2)
+  type               PropertyType
+  purchasePrice      Decimal?       @db.Decimal(18, 2)
+  purchasePriceBase  Decimal?       @db.Decimal(18, 2)
+  purchaseFxRate     Decimal?       @db.Decimal(18, 8)
+  acquisitionDate    DateTime?
+  currentValue       Decimal?       @db.Decimal(18, 2)
+  currentValueBase   Decimal?       @db.Decimal(18, 2)
+  currentValueFxRate Decimal?       @db.Decimal(18, 8)
+  currency           String         @db.VarChar(3)
+  status             PropertyStatus @default(ACTIVE)
+  archivedAt         DateTime?
+  notes              String?
+  workspace          Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  units              Unit[]
+  leases             Lease[]
+  rentPayments       RentPayment[]
+  expenses           Expense[]
+  documents          Document[]
+  propertyTags       PropertyTag[]
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, type])
+}
+
+model Unit {
+  id          String     @id @default(uuid())
+  workspaceId String
+  propertyId  String
+  name        String
+  unitNumber  String?
+  floor       String?
+  status      UnitStatus @default(ACTIVE)
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  property    Property   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  leases      Lease[]
+  documents   Document[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@unique([propertyId, name])
+  @@index([workspaceId, propertyId])
+}
+
+model Tenant {
+  id           String       @id @default(uuid())
+  workspaceId  String
+  fullName     String
+  email        String?
+  phone        String?
+  tenantType   TenantType   @default(INDIVIDUAL)
+  notes        String?
+  status       TenantStatus @default(ACTIVE)
+  archivedAt   DateTime?
+  workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  leases       Lease[]
+  rentPayments RentPayment[]
+  documents    Document[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, email])
+}
+
+model Lease {
+  id                String           @id @default(uuid())
+  workspaceId       String
+  propertyId        String
+  unitId            String?
+  tenantId          String
+  startDate         DateTime
+  endDate           DateTime?
+  monthlyRent       Decimal          @db.Decimal(18, 2)
+  depositAmount     Decimal?         @db.Decimal(18, 2)
+  currency          String           @db.VarChar(3)
+  paymentFrequency  PaymentFrequency @default(MONTHLY)
+  paymentDayOfMonth Int              @default(1)
+  status            LeaseStatus      @default(DRAFT)
+  terminatedAt      DateTime?
+  notes             String?
+  workspace         Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  property          Property         @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  unit              Unit?            @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  rentPayments      RentPayment[]
+  documents         Document[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([workspaceId, status])
+  @@index([propertyId, status])
+  @@index([tenantId, status])
+}
+
+model RentPayment {
+  id             String            @id @default(uuid())
+  workspaceId    String
+  propertyId     String
+  leaseId        String
+  tenantId       String
+  periodStart    DateTime
+  periodEnd      DateTime
+  dueDate        DateTime
+  paidDate       DateTime?
+  amountDue      Decimal           @db.Decimal(18, 2)
+  amountPaid     Decimal           @default(0) @db.Decimal(18, 2)
+  currency       String            @db.VarChar(3)
+  baseAmountDue  Decimal?          @db.Decimal(18, 2)
+  baseAmountPaid Decimal?          @db.Decimal(18, 2)
+  baseCurrency   String?           @db.VarChar(3)
+  exchangeRate   Decimal?          @db.Decimal(18, 8)
+  paymentMethod  PaymentMethod?
+  status         RentPaymentStatus @default(PENDING)
+  notes          String?
+  workspace      Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  property       Property          @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  lease          Lease             @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([workspaceId, status, dueDate])
+  @@index([leaseId, dueDate])
+  @@unique([leaseId, periodStart, periodEnd])
+}
+
+model ExpenseCategory {
+  id          String    @id @default(uuid())
+  workspaceId String
+  name        String
+  slug        String
+  color       String?
+  isSystem    Boolean   @default(false)
+  archivedAt  DateTime?
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  expenses    Expense[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId, archivedAt])
+}
+
+model Expense {
+  id           String           @id @default(uuid())
+  workspaceId  String
+  propertyId   String?
+  categoryId   String?
+  amount       Decimal          @db.Decimal(18, 2)
+  currency     String           @db.VarChar(3)
+  baseAmount   Decimal?         @db.Decimal(18, 2)
+  baseCurrency String?          @db.VarChar(3)
+  exchangeRate Decimal?         @db.Decimal(18, 8)
+  expenseDate  DateTime
+  vendorPayee  String?
+  notes        String?
+  workspace    Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  property     Property?        @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  category     ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  documents    Document[]
+  expenseTags  ExpenseTag[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([workspaceId, expenseDate])
+  @@index([propertyId, expenseDate])
+  @@index([categoryId, expenseDate])
+}
+
+model Tag {
+  id           String        @id @default(uuid())
+  workspaceId  String
+  name         String
+  color        String?
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  propertyTags PropertyTag[]
+  expenseTags  ExpenseTag[]
+  documentTags DocumentTag[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@unique([workspaceId, name])
+}
+
+model PropertyTag {
+  propertyId String
+  tagId      String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tag        Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([propertyId, tagId])
+}
+
+model ExpenseTag {
+  expenseId String
+  tagId     String
+  expense   Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([expenseId, tagId])
+}
+
+model Document {
+  id               String           @id @default(uuid())
+  workspaceId      String
+  propertyId       String?
+  unitId           String?
+  tenantId         String?
+  leaseId          String?
+  expenseId        String?
+  category         DocumentCategory
+  title            String?
+  originalFileName String
+  mimeType         String
+  sizeBytes        Int
+  storageProvider  StorageProvider
+  storageBucket    String
+  objectKey        String
+  checksum         String?
+  metadata         Json?
+  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  property         Property?        @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  unit             Unit?            @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  tenant           Tenant?          @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  lease            Lease?           @relation(fields: [leaseId], references: [id], onDelete: SetNull)
+  expense          Expense?         @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+  documentTags     DocumentTag[]
+  uploadedAt       DateTime         @default(now())
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([workspaceId, category])
+  @@index([propertyId])
+  @@index([tenantId])
+  @@index([leaseId])
+  @@index([expenseId])
+}
+
+model DocumentTag {
+  documentId String
+  tagId      String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  tag        Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([documentId, tagId])
+}
+
+model FinancialReport {
+  id              String          @id @default(uuid())
+  workspaceId     String
+  type            ReportType
+  format          ReportFormat
+  status          ReportStatus    @default(PENDING)
+  fromDate        DateTime
+  toDate          DateTime
+  baseCurrency    String          @db.VarChar(3)
+  filters         Json?
+  fileName        String?
+  storageProvider StorageProvider?
+  storageBucket   String?
+  objectKey       String?
+  generatedAt     DateTime?
+  expiresAt       DateTime?
+  workspace       Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([workspaceId, type, status])
+}
+
+model Subscription {
+  id                     String             @id @default(uuid())
+  workspaceId            String             @unique
+  planCode               String
+  status                 SubscriptionStatus @default(TRIAL)
+  billingProvider        BillingProvider?
+  providerCustomerId     String?
+  providerSubscriptionId String?
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  cancelAtPeriodEnd      Boolean            @default(false)
+  workspace              Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+}
+
+model RefreshSession {
+  id          String   @id @default(uuid())
+  userId      String
+  hashedToken String
+  userAgent   String?
+  ipAddress   String?
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@index([userId, expiresAt])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId, expiresAt])
+}
