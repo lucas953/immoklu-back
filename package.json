@@ -6,8 +6,9 @@
   },
   "scripts": {
     "dev": "nest start --watch",
+    "postinstall": "prisma generate",
     "build": "nest build",
-    "start": "node dist/main.js",
+    "start": "prisma migrate deploy && node dist/main.js",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "typecheck": "tsc --noEmit",
     "test": "jest",
