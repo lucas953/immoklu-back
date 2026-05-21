@@ -1,11 +1,18 @@
 import * as cookieParser from "cookie-parser";
 import { ValidationPipe } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const configService = app.get(ConfigService);
+  const appOrigin = configService.getOrThrow<string>("APP_ORIGIN");
+  const allowedOrigins = new Set([
+    "http://localhost:3000",
+    appOrigin
+  ]);
 
   app.setGlobalPrefix("v1");
   app.use(cookieParser());
@@ -17,10 +24,17 @@ async function bootstrap() {
     })
   );
   app.enableCors({
-    origin: [
-      'http://localhost:3000',
-      'https://your-immoklu-frontend.vercel.app'
-    ],
+    origin: (
+      origin: string | undefined,
+      callback: (error: Error | null, allow?: boolean) => void
+    ) => {
+      if (!origin || allowedOrigins.has(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`CORS origin not allowed: ${origin}`));
+    },
     credentials: true
   });
 
@@ -34,7 +48,7 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup("docs", app, document);
 
-  await app.listen(process.env.PORT ? Number(process.env.PORT) : 4000);
+  await app.listen(configService.getOrThrow<number>("PORT"));
 }
 
 void bootstrap();
