@@ -64,6 +64,13 @@ type DocumentWithRelations = Prisma.DocumentGetPayload<{
   include: typeof documentInclude;
 }>;
 
+type UploadedDocumentFile = {
+  originalname: string;
+  mimetype: string;
+  size: number;
+  buffer: Buffer;
+};
+
 @Injectable()
 export class DocumentsService {
   constructor(
@@ -85,6 +92,29 @@ export class DocumentsService {
       mimeType: dto.mimeType,
       sizeBytes: dto.sizeBytes,
       ...upload
+    };
+  }
+
+  async uploadDirect(user: AuthenticatedUser, file: UploadedDocumentFile) {
+    if (!file) {
+      throw new BadRequestException("Choose a file before uploading a document.");
+    }
+
+    const mimeType = file.mimetype || "application/octet-stream";
+    const objectKey = this.storageService.createDocumentObjectKey(user.workspaceId, file.originalname);
+
+    await this.storageService.uploadObject({
+      objectKey,
+      mimeType,
+      body: file.buffer,
+      sizeBytes: file.size
+    });
+
+    return {
+      objectKey,
+      originalFileName: file.originalname,
+      mimeType,
+      sizeBytes: file.size
     };
   }
 

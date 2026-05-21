@@ -1,4 +1,16 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors
+} from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import type { AuthenticatedUser } from "../common/types/authenticated-user.type";
@@ -15,6 +27,15 @@ export class DocumentsController {
   @Post("uploads/initiate")
   initiateUpload(@CurrentUser() user: AuthenticatedUser, @Body() dto: InitiateDocumentUploadDto) {
     return this.documentsService.initiateUpload(user, dto);
+  }
+
+  @Post("uploads/direct")
+  @UseInterceptors(FileInterceptor("file"))
+  uploadDirect(
+    @CurrentUser() user: AuthenticatedUser,
+    @UploadedFile() file: { originalname: string; mimetype: string; size: number; buffer: Buffer }
+  ) {
+    return this.documentsService.uploadDirect(user, file);
   }
 
   @Post()

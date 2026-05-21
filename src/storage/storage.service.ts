@@ -117,6 +117,34 @@ export class StorageService {
     }
   }
 
+  async uploadObject({
+    objectKey,
+    mimeType,
+    body,
+    sizeBytes
+  }: {
+    objectKey: string;
+    mimeType: string;
+    body: Buffer;
+    sizeBytes: number;
+  }) {
+    try {
+      await this.client.send(
+        new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: objectKey,
+          Body: body,
+          ContentType: mimeType,
+          ContentLength: sizeBytes
+        })
+      );
+    } catch {
+      throw new ServiceUnavailableException(
+        "Immoklu could not upload the file to storage. Please try again once storage is reachable."
+      );
+    }
+  }
+
   async deleteObject(objectKey: string) {
     try {
       await this.client.send(
