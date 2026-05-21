@@ -377,7 +377,7 @@ export class AuthService {
     const cookieBase = {
       httpOnly: true,
       secure: isProduction,
-      sameSite: "lax" as const,
+      sameSite: isProduction ? ("none" as const) : ("lax" as const),
       path: "/"
     };
 
@@ -393,8 +393,15 @@ export class AuthService {
   }
 
   private clearAuthCookies(res: Response) {
-    res.clearCookie(ACCESS_TOKEN_COOKIE_NAME, { path: "/" });
-    res.clearCookie(REFRESH_TOKEN_COOKIE_NAME, { path: "/" });
+    const isProduction = this.configService.get<string>("NODE_ENV") === "production";
+    const cookieBase = {
+      secure: isProduction,
+      sameSite: isProduction ? ("none" as const) : ("lax" as const),
+      path: "/"
+    };
+
+    res.clearCookie(ACCESS_TOKEN_COOKIE_NAME, cookieBase);
+    res.clearCookie(REFRESH_TOKEN_COOKIE_NAME, cookieBase);
   }
 
   private async verifyRefreshToken(refreshToken: string) {

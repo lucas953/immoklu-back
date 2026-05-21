@@ -5,12 +5,15 @@ import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { AppModule } from "./app.module";
 
+const DEFAULT_FRONTEND_ORIGIN = "https://immoklu-front-web.vercel.app";
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
   const appOrigin = configService.getOrThrow<string>("APP_ORIGIN");
   const allowedOrigins = new Set([
     "http://localhost:3000",
+    DEFAULT_FRONTEND_ORIGIN,
     appOrigin
   ]);
 
