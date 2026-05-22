@@ -85,6 +85,21 @@ enum DocumentCategory {
   MISCELLANEOUS
 }
 
+enum DocumentExtractionStatus {
+  NOT_STARTED
+  EXTRACTED
+  NEEDS_OCR
+  FAILED
+}
+
+enum DocumentParsingStatus {
+  NOT_STARTED
+  PARSED
+  NEEDS_REVIEW
+  CONFIRMED
+  FAILED
+}
+
 enum StorageProvider {
   R2
   AWS_S3
@@ -397,12 +412,15 @@ model Document {
   objectKey        String
   checksum         String?
   metadata         Json?
+  extractionStatus DocumentExtractionStatus @default(NOT_STARTED)
+  parsingStatus    DocumentParsingStatus    @default(NOT_STARTED)
   workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   property         Property?        @relation(fields: [propertyId], references: [id], onDelete: SetNull)
   unit             Unit?            @relation(fields: [unitId], references: [id], onDelete: SetNull)
   tenant           Tenant?          @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   lease            Lease?           @relation(fields: [leaseId], references: [id], onDelete: SetNull)
   expense          Expense?         @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+  extraction        DocumentExtraction?
   documentTags     DocumentTag[]
   uploadedAt       DateTime         @default(now())
   createdAt        DateTime         @default(now())
@@ -413,6 +431,25 @@ model Document {
   @@index([tenantId])
   @@index([leaseId])
   @@index([expenseId])
+}
+
+model DocumentExtraction {
+  id               String   @id @default(uuid())
+  documentId       String   @unique
+  extractionMethod String
+  rawText          String?
+  normalizedText   String?
+  parsedJson       Json?
+  correctedJson    Json?
+  parserName       String?
+  parserVersion    String?
+  confidenceScore  Decimal? @db.Decimal(5, 4)
+  warnings         Json?
+  missingFields    Json?
+  textChecksum     String?
+  document         Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 model DocumentTag {

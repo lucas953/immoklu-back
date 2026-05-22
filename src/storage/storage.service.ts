@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { Readable } from "node:stream";
 import {
   DeleteObjectCommand,
   GetObjectCommand,
@@ -156,6 +157,46 @@ export class StorageService {
     } catch {
       throw new ServiceUnavailableException(
         "Immoklu could not delete the file from storage. Please try again once storage is reachable."
+      );
+    }
+  }
+
+  async getObjectBuffer(objectKey: string) {
+    try {
+      const response = await this.client.send(
+        new GetObjectCommand({
+          Bucket: this.bucket,
+          Key: objectKey
+        })
+      );
+
+      const body = response.Body as unknown;
+
+      if (!body) {
+        return Buffer.alloc(0);
+      }
+
+      const transformableBody = body as {
+        transformToByteArray?: () => Promise<Uint8Array>;
+      };
+
+      if (typeof transformableBody.transformToByteArray === "function") {
+        const bytes = await transformableBody.transformToByteArray();
+        return Buffer.from(bytes);
+      }
+
+      if (body instanceof Readable) {
+        const chunks: Buffer[] = [];
+        for await (const chunk of body) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+        return Buffer.concat(chunks);
+      }
+
+      throw new Error("Unsupported storage response body.");
+    } catch {
+      throw new ServiceUnavailableException(
+        "Immoklu could not read the file from storage. Please try again once storage is reachable."
       );
     }
   }

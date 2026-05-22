@@ -17,12 +17,18 @@ import type { AuthenticatedUser } from "../common/types/authenticated-user.type"
 import { CreateDocumentDto } from "./dto/create-document.dto";
 import { InitiateDocumentUploadDto } from "./dto/initiate-document-upload.dto";
 import { UpdateDocumentDto } from "./dto/update-document.dto";
+import { DocumentExtractionService } from "./extraction/document-extraction.service";
+import { DocumentParsingService } from "./parsing/document-parsing.service";
 import { DocumentsService } from "./documents.service";
 
 @UseGuards(JwtAuthGuard)
 @Controller("documents")
 export class DocumentsController {
-  constructor(private readonly documentsService: DocumentsService) {}
+  constructor(
+    private readonly documentsService: DocumentsService,
+    private readonly documentExtractionService: DocumentExtractionService,
+    private readonly documentParsingService: DocumentParsingService
+  ) {}
 
   @Post("uploads/initiate")
   initiateUpload(@CurrentUser() user: AuthenticatedUser, @Body() dto: InitiateDocumentUploadDto) {
@@ -70,5 +76,20 @@ export class DocumentsController {
   @Get(":documentId/download-url")
   getDownloadUrl(@CurrentUser() user: AuthenticatedUser, @Param("documentId") documentId: string) {
     return this.documentsService.getDownloadUrl(user, documentId);
+  }
+
+  @Post(":documentId/extract-text")
+  extractText(@CurrentUser() user: AuthenticatedUser, @Param("documentId") documentId: string) {
+    return this.documentExtractionService.extractText(user, documentId);
+  }
+
+  @Get(":documentId/extraction")
+  findExtraction(@CurrentUser() user: AuthenticatedUser, @Param("documentId") documentId: string) {
+    return this.documentExtractionService.findExtraction(user, documentId);
+  }
+
+  @Post(":documentId/parse")
+  parse(@CurrentUser() user: AuthenticatedUser, @Param("documentId") documentId: string) {
+    return this.documentParsingService.parse(user, documentId);
   }
 }
