@@ -495,6 +495,8 @@ export class DocumentsService {
       originalFileName: document.originalFileName,
       mimeType: document.mimeType,
       sizeBytes: document.sizeBytes,
+      extractionStatus: document.extractionStatus,
+      parsingStatus: document.parsingStatus,
       propertyId: document.propertyId,
       unitId: document.unitId,
       tenantId: document.tenantId,
